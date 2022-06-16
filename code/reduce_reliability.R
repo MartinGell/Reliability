@@ -149,56 +149,42 @@ for (rel_i in new_reliability) {
   # This could also be overcome by zscoring - but given certain variables
   # are already normalised and adjusted by age this seems a better solution
   # Test variables
-  all_noise_test <- matrix(0, nrow = length(T1), ncol = 1000)
   all_cor_test <- numeric(1000)
-
-  if (custom_scale == TRUE) {
-    SD_dif <- 99
-    new_scale <- 1 #scale
-
-    while(SD_dif > 0.15) {
-
-      scale <- new_scale
-
-      for (i in 1:1000) {
-        # create a random vector that will be manipulated to have specific cor with beh
-        x <- rnorm(n = length(T1), mean = empirical_mean, sd = empirical_sd/scale)
-
-        T1_noisy <- noisier_beh(T1, rel_i, x)
-        T1_noisy_ok <- round(T1_noisy/10,digits = 0)
-        # Save
-        all_noise_test[,i] <- T1_noisy_ok
-        all_cor_test[i] <- cor(T1_noisy_ok,T1)
-      }
-
-      all_noise_test_sd <- mean(apply(all_noise_test,2,sd))
-      SD_dif <- abs(empirical_sd - all_noise_test_sd)
-
-      new_scale <- scale + 0.025
-
-    }
-  }
+  all_scalers <- numeric(1000)
+  all_offsets <- numeric(1000)
 
   for (i in 1:1000) {
     # create a random vector that will be manipulated to have specific cor with beh
-    x <- rnorm(n = length(T1), mean = empirical_mean, sd = empirical_sd/scale)
-
-    T1_noisy <- noisier_beh(T1, rel_i, x)
-    T1_noisy_ok <- round(T1_noisy/10,digits = 0)
+    x <- rnorm(n = length(T1), mean = sample(T1, size = length(T1), replace = TRUE), PDF$bw)
+    # now make this correlate with T1 at defined reliability (rel_i)
+    T1_noisy <- noisier_beh(T1, rel_i, x) # Correlated but different scale
+    scaler <- sd(T1_noisy)/empirical_sd   # For scaling data to same as T1
+    T1_noisy_scaled <- round(T1_noisy/scaler, digits = 0) # Round as age is int
+    mean_offset <- empirical_mean - mean(T1_noisy_scaled) # diff between means
+    T1_noisy_ok <- T1_noisy_scaled + mean_offset # shift mean by diff in means
+    # Now: 
+    #   empirical_mean == mean(T1_noisy_ok)
+    #   empirical_sd   == sd(T1_noisy_ok)
+    
     # Save
-    all_noise_test[,i] <- T1_noisy_ok
+    all_scalers[i] <- scaler
+    all_offsets[i] <- mean_offset
     all_cor_test[i] <- cor(T1_noisy_ok,T1)
+    
   }
-
-  all_noise_test_mean <- mean(all_noise_test)
-  noise_offset <- round(empirical_mean - all_noise_test_mean, digits = 1)
-
+  remove(scaler,mean_offset)
+  
+  #all_noise_test_mean = mean(all_noise_test)
+  #noise_offset = round(mean(T1) - all_noise_test_mean,digits = 0)
+  mean_offset = mean(all_offsets)
+  scaler = mean(all_scalers)
+  
   print('mean correlation between T1_noisy and T1 before offset adjustment')
   print(mean(all_cor_test))
+  print('scaler size:')
+  print(scaler)
   print('offset size:')
-  print(noise_offset)
-  print('scale:')
-  print(scale)
+  print(mean_offset)
 
   # Now add noise and adjust for offset
   print(sprintf('Creating noisy datasets with reliability %f ...', rel_i))
@@ -211,15 +197,12 @@ for (rel_i in new_reliability) {
 
   for (i in 1:n) {
     # create a random vector that will be manipulated to have specific cor with beh
-    x <- rnorm(n = length(T1), mean = empirical_mean, sd = empirical_sd/scale)
+    x <- rnorm(n = length(T1), mean = empirical_mean, sd = empirical_sd)
 
     #to be sligthly smaller as it gets inflated while adding noise. Now is the same as beh
     T1_noisy <- noisier_beh(T1, rel_i, x)
-    #plot(new/10,T1)
     ###T1_noisy_ok <- min_max(T1_noisy/10, min = minimum, max = maximum)
-    T1_noisy_ok <- round(T1_noisy/10,digits = 0) + noise_offset
-    #print(sd(T1_noisy_ok))
-    #print(mean(T1_noisy_ok))
+    T1_noisy_ok <- round((T1_noisy/scaler) + mean_offset, digits = 0)
     # values end up 10*higher than original values in T1
     # when adding noise. Dividing by 10 adjusts for it. Linear scaling doesnt
     # affect correlations so this makes no difference.
@@ -232,14 +215,9 @@ for (rel_i in new_reliability) {
 
     beh_noise = data.frame('src_subject_id' = d$src_subject_id, 'placeholder' = T1_noisy_ok)
     names(beh_noise)[names(beh_noise) == "placeholder"] <- beh_label
-    if (rel_i == 1.0) {
-      write.csv(beh_noise, paste0(outdir,fname,designator,'_wnoise_rel_',rel_i,'_',i,'.csv'),row.names = FALSE)
-    } else {
-      rel <- unlist(strsplit(as.character(rel_i), '[.]'))
-      rel <- rel[2]
-     write.csv(beh_noise, paste0(outdir,fname,designator,'_wnoise_rel_0',rel,'_',i,'.csv'),row.names = FALSE)
-    }
-
+    rel <- unlist(strsplit(as.character(rel_i), '[.]'))
+    rel <- rel[2]
+    write.csv(beh_noise, paste0(outdir,fname,designator,'_wnoise_rel_0',rel,'_',i,'.csv'),row.names = FALSE)
   }
 
   # Print stuff
