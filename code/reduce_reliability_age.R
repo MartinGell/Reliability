@@ -14,7 +14,7 @@ library(faux)
 ### SET UP ###
 #reliability <- c(0.85, 0.75, 0.65) # desired correlation with empirical measure
 true_reliability <- 1.0  # actual reliability of measure
-new_reliability <- c(0.9)  #c(0.99,0.95,0.9,0.85,0.8,0.75,0.7,0.65,0.6,0.55,0.5)    # desired correlation with empirical measure
+new_reliability <- c(0.99,0.95,0.9,0.85,0.8,0.75,0.7,0.65,0.6,0.55,0.5)    # desired correlation with empirical measure
 n <- 100  # how many simulated noisy datasets to make
 
 outdir <- '/home/mgell/Work/Prediction_HCP/text_files/rel/'
@@ -53,6 +53,23 @@ noisier_beh <- function(y, rho, x) {
   y_res <- residuals(lm(x ~ y)) # residuals of x against y (removing y from x).
   # y_res is orthogonal to y
   rho * sd(y_res) * y + y_res * sd(y) * sqrt(1 - rho^2) # optimise for specific r
+}
+
+# function for removing too young or old
+ok_age <- function(vec,extreme) {
+  if (extreme == 'young') {
+    new_vec = vec
+    replacement = round(vec[vec < 300] + abs(rnorm(n = length(vec[vec < 300]), mean = 0, sd = 50)), digits = 0)
+    new_vec[vec < 300] = replacement
+    return(new_vec)
+  } else if(extreme == 'old') {
+    new_vec = vec
+    replacement = round(vec[vec > 1200] - abs(rnorm(n = length(vec[vec > 1200]), mean = 0, sd = 50)), digits = 0)
+    new_vec[vec > 1200] = replacement
+    return(new_vec)
+  } else {
+    print('WRONG OPTION, SKIPPING...')
+  }
 }
 
 
@@ -140,10 +157,21 @@ for (rel_i in new_reliability) {
     x <- rnorm(n = length(T1), mean = sample(T1, size = length(T1), replace = TRUE), PDF$bw)
     #to be sligthly smaller as it gets inflated while adding noise. Now is the same as beh
     T1_noisy <- noisier_beh(T1, rel_i, x)
-    T1_noisy_ok <- round(T1_noisy/scaler,digits = 0) + mean_offset
+    T1_noisy_ok <- round((T1_noisy/scaler) + mean_offset, digits = 0)
     # values end up 10*higher than original values in T1
     # when adding noise. Dividing by 10 adjusts for it. Linear scaling doesnt
     # affect correlations so this makes no difference.
+    
+    # Make sure there are no extra young or extra old participants
+    # (within a margin of acceptable variation outside the sample < 300, > 1200)
+    while (min(T1_noisy_ok) < 300) {
+      print('fixing too young')
+      T1_noisy_ok = ok_age(T1_noisy_ok,'young')
+    }
+    while (max(T1_noisy_ok) > 1200) {
+      print('fixing too old')
+      T1_noisy_ok = ok_age(T1_noisy_ok,'old')
+    }
     
     # Save
     all_noisy[,i] <- T1_noisy_ok
@@ -203,12 +231,12 @@ for (rel_i in new_reliability) {
   all_noisy_d = data.frame('Actual_data' = T1, 'Example_1_noisy_data' = all_noisy[,eg1], 'Example_2_noisy_data' = all_noisy[,eg2])
   plt3 = ggplot(all_noisy_d,aes(x=Actual_data,y=Example_1_noisy_data)) + 
     geom_point(size=2.5, alpha=0.6, colour="skyblue3") + theme_classic() + 
-    annotate('text', x = 500, y = 1100, label=paste("Correlation:", round(cor(all_noisy_d$Actual_data, all_noisy_d$Example_1_noisy_data),digits = 2)), size=5)
+    annotate('text', x = 600, y = 1100, label=paste("Correlation:", round(cor(all_noisy_d$Actual_data, all_noisy_d$Example_1_noisy_data),digits = 2)), size=5)
   ggsave(paste0(plt_out,'plt_example1_',beh,'_wnoise_rel_',rel_i,'.png'), plt3, width=4, height=4)
   
   plt4 = ggplot(all_noisy_d,aes(x=Actual_data,y=Example_2_noisy_data)) + 
     geom_point(size=2.5, alpha=0.6, colour="skyblue3") + theme_classic() + 
-    annotate('text', x = 500, y = 1200, label=paste("Correlation:", round(cor(all_noisy_d$Actual_data, all_noisy_d$Example_2_noisy_data),digits = 2)), size=5)
+    annotate('text', x = 600, y = 1200, label=paste("Correlation:", round(cor(all_noisy_d$Actual_data, all_noisy_d$Example_2_noisy_data),digits = 2)), size=5)
   ggsave(paste0(plt_out,'plt_example2_',beh,'_wnoise_rel_',rel_i,'.png'), plt4, width=4, height=4)
   
   #plot(all_noisy[,50], T1)
