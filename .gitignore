@@ -9,7 +9,9 @@
 /code_figures
 /logs
 *.submit
-
+/plots_presentation
+/plots
+/input
 
 ### JupyterNotebooks ###
 # gitignore template for Jupyter Notebooks
