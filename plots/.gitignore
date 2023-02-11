@@ -1,0 +1,7 @@
+# all plots except simulation creation
+/HCP_YA_res
+/HCP_YA_behaviour
+/backup
+/exact_distribution
+/simulation_res
+/UKB

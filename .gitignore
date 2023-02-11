@@ -10,8 +10,10 @@
 /logs
 *.submit
 /plots_presentation
-/plots
 /input
+/code/dev
+/code/func
+/code/sample
 
 ### JupyterNotebooks ###
 # gitignore template for Jupyter Notebooks
